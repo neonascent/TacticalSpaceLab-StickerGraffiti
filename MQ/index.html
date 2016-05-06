@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN"> 
+<html>
+<head>
+	<title>Tactical Space Lab</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+	<link rel="stylesheet" href="/js/leaflet/leaflet.css" />
+	<script type="text/javascript" src="/js/leaflet/leaflet.js"></script>
+
+	<style>
+		body {
+			padding: 0;
+			margin: 0;
+		}
+		html, body, #map {
+			height: 100%;
+		}
+
+		#loading {
+			position:fixed;
+			top:0;
+			left:0;
+			width:100%;
+			height:100%;
+			background-color:#666;
+			color:#fff;
+			font-size:2em;
+			padding:20% 40%;
+			z-index:10;
+		}
+	</style>
+</head>
+<body>
+	<div id="map"></div>
+	<div id="loading">Loading...</div>
+
+	<!-- GeoCSV: https://github.com/joker-x/Leaflet.geoCSV -->
+	<script src="/js/leaflet.geocsv.js"></script>
+
+	<!-- jQuery 1.8.3: http://jquery.com/ -->
+	<script src="/js/jquery.min.js"></script>
+
+
+	<!-- load JSON points -->
+	<script src="./geoJSON.js" type="text/javascript"></script>
+
+	<script>
+		var map = L.map('map', {attributionControl:'TacticalSpaceLab'}).setView([48.203337,16.358617], 15); //var map = L.map('map').setView([39.74739, -105], 13);
+
+		L.tileLayer('./maptiles/{z}/{x}/{y}.png', {
+		    maxZoom: 18,
+		    attribution: 'TacticalSpaceLab'
+		}).addTo(map);
+		
+		var sticks = L.geoCsv(null, {
+			onEachFeature: function (feature, layer) {
+					var popupContent = "";
+		
+
+					if (feature.properties && feature.properties.id) {
+						popupContent += "<img src=\"./stickers/images/" + feature.properties.id + ".png\" style=\" position:absolute; top: -305px; left: -75px;\" height=300 width=300/>";
+					}
+
+					if (feature.properties && feature.properties.time && feature.properties.date) {
+						popupContent += "<p>" + feature.properties.time + " "+feature.properties.date+"</p>";
+					}
+		
+                
+                    
+					layer.bindPopup(popupContent);
+				
+			},
+			pointToLayer: function (feature, latlng) {
+				
+				var fColor = "#ff7800";	
+				if (feature.properties && feature.properties.fillcolor) {
+					fColor = "#"+feature.properties.fillcolor;
+				} 
+
+				return L.circleMarker(latlng, {
+					radius: 8,
+					fillColor: fColor,
+					color: "#000",
+					weight: 1,
+					opacity: 1,
+					fillOpacity: 0.8
+				});
+			},
+			firstLineTitles: true,
+			fieldSeparator: ';'
+		});
+		
+
+        var markerIndex = 0;
+        
+        function nextMarker(targetLayer, markerAnimationTime) {
+            // if been set to out
+            if (markerIndex <  0) { return false; }
+            
+            // loop through till we find next marker
+            while((markerIndex < targetLayer.getLayers().length) && (targetLayer.getLayers()[markerIndex] instanceof L.Marker === false) && (targetLayer.getLayers()[markerIndex] instanceof L.CircleMarker === false)) {
+                markerIndex++;
+            }
+            
+            // found marker
+            if (markerIndex < targetLayer.getLayers().length) {
+                targetLayer.getLayers()[markerIndex].openPopup();
+                markerIndex++;
+                // if more markers 
+                setTimeout( function() {nextMarker(targetLayer,markerAnimationTime);},markerAnimationTime);
+                
+            } else {
+                // list is over 
+                markerIndex = -1;
+                return false;
+            }
+            
+            return true;
+
+        }
+        
+        // popup for images
+        //http://stackoverflow.com/questions/22538473/leaflet-center-popup-and-marker-to-the-map
+        map.on('popupopen', function(e) {
+            var px = map.project(e.popup._latlng); // find the pixel location on the map where the popup anchor is
+            px.y -= (e.popup._container.clientHeight+300)/2 // find the height of the popup container, divide by 2, subtract from the Y axis of marker location
+            map.panTo(map.unproject(px),{animate: true}); // pan to new center
+        });
+        
+        
+ 
+		$.ajax ({
+			type:'GET',
+			dataType:'text',
+			url:'./stickers/stickers.csv',
+		   error: function() {
+		     alert('Cant find the data');
+		   },
+			success: function(csv) {
+				sticks.addData(csv);
+				map.addLayer(sticks);
+
+			},
+		   complete: function() {
+		      $('#loading').delay(500).fadeOut('slow');
+              nextMarker(sticks, 2000);
+		   }
+		});
+
+
+		function loadStamen() {
+			var layer = new L.StamenTileLayer('toner');
+			map.addLayer(layer);
+		
+		}
+
+
+		function onLocationFound(e) {
+			var radius = e.accuracy / 2;
+
+			L.marker(e.latlng).addTo(map);
+
+		}
+
+		function onLocationError(e) {
+			alert(e.message);
+		}
+
+		map.on('locationfound', onLocationFound);
+		map.on('locationerror', onLocationError);
+
+		//map.locate({setView: true, maxZoom: 16});
+	</script>
+
+	<!-- load stamen map if available -->
+	<script type="text/javascript" src="http://maps.stamen.com/js/tile.stamen.js?v1.3.0" onload="//loadStamen();"></script>
+</body>
+</html>
